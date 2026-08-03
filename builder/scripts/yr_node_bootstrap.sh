@@ -6,7 +6,6 @@ ulimit -n 32768
 YR_CONFIG_TEMPLATE=/etc/yuanrong/config.toml.jinja
 YR_CONFIG_PATH="${YR_RENDERED_CONFIG_PATH:-/run/yuanrong/config.toml}"
 export YR_RUNTIME_BACKEND=sandboxd
-YR_CLI="${YR_CLI:-/opt/openyuanrong/bin/yr}"
 
 role="${AKERNEL_ROLE:-}"
 if [[ -z "$role" ]]; then
@@ -40,12 +39,12 @@ if [[ -n "${ENABLE_TRACE:-}" ]]; then
 fi
 
 mkdir -p "$(dirname "$YR_CONFIG_PATH")"
-"${YR_CLI}" config render \
+yr config render \
     -t "$YR_CONFIG_TEMPLATE" \
     -o "$YR_CONFIG_PATH"
 
 YR_CLI_ARGS=(
-    "${YR_CLI}" --config "$YR_CONFIG_PATH" start
+    yr --config "$YR_CONFIG_PATH" start
 )
 if [[ "$role" == "node-standalone" ]]; then
     YR_CLI_ARGS+=(--master)

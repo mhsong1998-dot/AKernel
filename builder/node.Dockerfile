@@ -113,7 +113,6 @@ RUN apt-get update && \
         procps \
         python3 \
         python3-pip \
-        python3-venv \
         systemd \
         systemd-sysv \
         tzdata \
@@ -163,9 +162,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
 
 
 ENV YR_INSTALLATION_DIR=/home/yuanrong
-ENV PATH=/opt/openyuanrong/bin:${PATH}
 
-COPY ./builder/config/yr/requirements.lock /opt/openyuanrong/share/openyuanrong/requirements.lock
 COPY ./builder/config/yr/config.toml.jinja /etc/yuanrong/config.toml.jinja
 COPY ./src/yuanrong/LICENSE /usr/share/licenses/openyuanrong/LICENSE
 
@@ -177,15 +174,14 @@ RUN set -eux; \
       -o /tmp/openyuanrong_core-0.7.0+12194b7d189e-py3-none-manylinux_2_31_x86_64.whl; \
     echo "${YR_CORE_WHEEL_SHA256}  /tmp/openyuanrong_core-0.7.0+12194b7d189e-py3-none-manylinux_2_31_x86_64.whl" \
       | sha256sum -c -; \
-    python3 -m venv /opt/openyuanrong; \
-    /opt/openyuanrong/bin/python -m pip install \
-      --require-hashes \
-      -r /opt/openyuanrong/share/openyuanrong/requirements.lock; \
-    /opt/openyuanrong/bin/python -m pip install \
-      --no-deps \
+    pip3 install \
+      --break-system-packages \
+      --no-cache-dir \
+      -i https://mirrors.aliyun.com/pypi/simple \
       /tmp/openyuanrong_core-0.7.0+12194b7d189e-py3-none-manylinux_2_31_x86_64.whl; \
-    base_py=/opt/openyuanrong/lib/python3.12/site-packages/yr/cli/component/base.py; \
-    launcher_py=/opt/openyuanrong/lib/python3.12/site-packages/yr/cli/system_launcher.py; \
+    yr_package_dir="$(python3 -c 'import pathlib, yr; print(pathlib.Path(yr.__file__).parent)')"; \
+    base_py="${yr_package_dir}/cli/component/base.py"; \
+    launcher_py="${yr_package_dir}/cli/system_launcher.py"; \
     test "$(grep -Fxc '        logger.info(f"Environment: {full_env}")' "${base_py}")" -eq 1; \
     test "$(grep -Fxc '                    "env_vars": comp.env_vars,' "${launcher_py}")" -eq 1; \
     sed -i \
@@ -196,7 +192,7 @@ RUN set -eux; \
     test "$(grep -Fxc '        logger.info(f"Environment keys: {sorted(full_env)}")' "${base_py}")" -eq 1; \
     ! grep -Fq '                    "env_vars": comp.env_vars,' "${launcher_py}"; \
     test "$(grep -Fxc '                    "env_vars": {},' "${launcher_py}")" -eq 1; \
-    /opt/openyuanrong/bin/python -c "import yr"; \
+    python3 -c "import yr"; \
     yr --help; \
     yr config render --help; \
     AKERNEL_ROLE=node-agent \
