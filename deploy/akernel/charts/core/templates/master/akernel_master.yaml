@@ -131,6 +131,12 @@ spec:
               containerPort: 31111
             - name: global-sched
               containerPort: 22770
+          startupProbe:
+            tcpSocket:
+              port: 22770
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           livenessProbe:
             tcpSocket:
               port: 22770
