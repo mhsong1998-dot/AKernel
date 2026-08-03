@@ -58,7 +58,6 @@ spec:
       initContainers:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- $nodeEtcd := .Values.node.etcd | default dict }}
       containers:
       - name: akernel-node
         image: "{{ include "core.image" (dict "root" . "image" .Values.node.image) }}"
@@ -77,9 +76,10 @@ spec:
           {{- toYaml .Values.node.resources | nindent 10 }}
         env:
         - name: AKERNEL_ROLE
-          value: "node"
+          value: "node-agent"
         - name: RUNSC_AKERNEL
           value: "1"
+        {{- $nodeEtcd := .Values.node.etcd | default .Values.master.etcd | default dict }}
         - name: ETCD_ADDRESS
           value: {{ get $nodeEtcd "host" | default (printf "akernel-etcd.%s.svc.cluster.local" .Release.Namespace) | quote }}
         - name: ETCD_PORT
@@ -118,16 +118,24 @@ spec:
         {{- end }}
         - name: AKERNEL_ENV
           value: {{ .Values.monitoring.akernelEnv | default "default" | quote }}
+        {{- if .Values.monitoring.prometheusEndpoint }}
         - name: ENABLE_METRICS
-          value: {{ ne (.Values.monitoring.prometheusEndpoint | default "") "" | ternary "true" "false" | quote }}
+          value: "true"
+        {{- end }}
+        {{- if .Values.monitoring.tempoEndpoint }}
         - name: ENABLE_TRACE
-          value: {{ ne (.Values.monitoring.tempoEndpoint | default "") "" | ternary "true" "false" | quote }}
+          value: "true"
+        {{- end }}
         - name: TRAEFIK_MODE
           value: {{ .Values.traefik.mode | default "http" | quote }}
+        {{- if and (not (.Values.traefik.enableWebEntrypoint | default false)) (.Values.traefik.enableTLS | default false) }}
         - name: TRAEFIK_ENABLE_TLS
-          value: {{ .Values.traefik.enableWebEntrypoint | default false | ternary false (.Values.traefik.enableTLS | default false) | quote }}
+          value: "true"
+        {{- end }}
+        {{- if .Values.traefik.enableWebEntrypoint }}
         - name: TRAEFIK_HTTP_ENTRYPOINT
-          value: {{ .Values.traefik.enableWebEntrypoint | default false | ternary "web" "websecure" | quote }}
+          value: "web"
+        {{- end }}
         securityContext:
           privileged: true
         volumeMounts:

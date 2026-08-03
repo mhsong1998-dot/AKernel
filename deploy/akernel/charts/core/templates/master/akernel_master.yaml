@@ -78,13 +78,7 @@ spec:
             - /usr/local/bin/akernel-entrypoint
           env:
             - name: AKERNEL_ROLE
-              value: "master"
-            {{- if .Values.frontend.enabled }}
-            - name: ENABLE_FAAS_FRONTEND
-              value: "false"
-            - name: ENABLE_IAM_SERVER
-              value: "false"
-            {{- end }}
+              value: {{ .Values.frontend.enabled | ternary "cluster-master-core" "cluster-master" | quote }}
             - name: LITEBUS_DATA_KEY
               valueFrom:
                 secretKeyRef:
@@ -94,6 +88,10 @@ spec:
               value: {{ get $masterEtcd "host" | default (printf "akernel-etcd.%s.svc.cluster.local" .Release.Namespace) | quote }}
             - name: ETCD_PORT
               value: {{ get $masterEtcd "port" | default "2379" | quote }}
+            {{- if .Values.master.iamServerAddress }}
+            - name: IAM_SERVER_ADDRESS
+              value: {{ .Values.master.iamServerAddress | quote }}
+            {{- end }}
             {{- if .Values.monitoring.prometheusEndpoint }}
             - name: PROMETHEUS_ENDPOINT
               value: {{ .Values.monitoring.prometheusEndpoint | quote }}
@@ -108,16 +106,24 @@ spec:
             {{- end }}
             - name: AKERNEL_ENV
               value: {{ .Values.monitoring.akernelEnv | default "default" | quote }}
+            {{- if .Values.monitoring.prometheusEndpoint }}
             - name: ENABLE_METRICS
-              value: {{ ne (.Values.monitoring.prometheusEndpoint | default "") "" | ternary "true" "false" | quote }}
+              value: "true"
+            {{- end }}
+            {{- if .Values.monitoring.tempoEndpoint }}
             - name: ENABLE_TRACE
-              value: {{ ne (.Values.monitoring.tempoEndpoint | default "") "" | ternary "true" "false" | quote }}
+              value: "true"
+            {{- end }}
             - name: TRAEFIK_MODE
               value: {{ .Values.traefik.mode | default "http" | quote }}
+            {{- if and (not (.Values.traefik.enableWebEntrypoint | default false)) (.Values.traefik.enableTLS | default false) }}
             - name: TRAEFIK_ENABLE_TLS
-              value: {{ .Values.traefik.enableWebEntrypoint | default false | ternary false (.Values.traefik.enableTLS | default false) | quote }}
+              value: "true"
+            {{- end }}
+            {{- if .Values.traefik.enableWebEntrypoint }}
             - name: TRAEFIK_HTTP_ENTRYPOINT
-              value: {{ .Values.traefik.enableWebEntrypoint | default false | ternary "web" "websecure" | quote }}
+              value: "web"
+            {{- end }}
           ports:
             - name: http
               containerPort: 8888
