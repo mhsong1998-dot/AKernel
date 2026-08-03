@@ -9,7 +9,7 @@ role="${AKERNEL_ROLE:-}"
 
 if [ -z "${role}" ] && [ "$#" -gt 0 ]; then
     case "$1" in
-        master|frontend|node|standalone)
+        master|master-core|frontend|node|standalone|cluster-master|cluster-master-core|cluster-frontend|node-agent|node-standalone)
             role="$1"
             shift
             ;;
@@ -18,28 +18,39 @@ fi
 
 if [ -z "${role}" ]; then
     if [ "${AKS_LOCAL_MODE:-}" = "true" ]; then
-        role="standalone"
+        role="node-standalone"
     else
-        echo "AKERNEL_ROLE is required: master, frontend, node, or standalone" >&2
+        echo "AKERNEL_ROLE is required: cluster-master, cluster-master-core, cluster-frontend, node-agent, or node-standalone" >&2
         exit 1
     fi
 fi
 
 case "${role}" in
-    master|frontend)
+    master) role=cluster-master ;;
+    master-core) role=cluster-master-core ;;
+    frontend) role=cluster-frontend ;;
+    node) role=node-agent ;;
+    standalone) role=node-standalone ;;
+    cluster-master|cluster-master-core|cluster-frontend|node-agent|node-standalone)
+        ;;
+    *)
+        echo "unsupported AKERNEL_ROLE: ${role}; expected cluster-master, cluster-master-core, cluster-frontend, node-agent, or node-standalone" >&2
+        exit 1
+        ;;
+esac
+export AKERNEL_ROLE="$role"
+
+case "$role" in
+    cluster-master|cluster-master-core|cluster-frontend)
         /usr/local/bin/ensure-component-cert
         exec /bin/bash /home/yuanrong/entrypoint.sh "$@"
         ;;
-    node)
+    node-agent)
         /bin/bash /root/prepare_node.sh
         exec /usr/sbin/init "$@"
         ;;
-    standalone)
+    node-standalone)
         /usr/local/bin/ensure-component-cert
         exec /usr/sbin/init "$@"
-        ;;
-    *)
-        echo "unsupported AKERNEL_ROLE: ${role}" >&2
-        exit 1
         ;;
 esac

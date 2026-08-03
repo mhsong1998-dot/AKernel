@@ -6,15 +6,10 @@ ARG AKERNEL_NODE_BASE_IMAGE=ubuntu:24.04
 ARG AKERNEL_RUNTIME_IMAGE=akernel-runtime:local
 ARG SANDBOXD_BUILD_IMAGE=golang:1.25.5-bookworm
 ARG DISTILL_FS_BUILD_IMAGE=rust:1.85.0-bookworm
-ARG OPEN_YR_VERSION=0.9.3
-ARG OPEN_YR_CORE_WHEEL_URL=
-ARG OPEN_YR_CORE_WHEEL_SHA256=
-ARG OPEN_YR_RELEASE_BASE_URL=https://github.com/openYuanrong-mirror/yuanrong/releases/download
-ARG OPEN_YR_CORE_AMD64_SHA256=dd472bfa60d3d934056801ae011db7b1993cb19c5681da2395e7f1e2d84e58c3
-ARG OPEN_YR_CORE_ARM64_SHA256=4a3468d189e155e1759e2b47ace4b468d9036e76b4b750a1d47d7d13d143563e
+ARG YR_CORE_WHEEL_URL=https://openyuanrong.obs.cn-southwest-2.myhuaweicloud.com/daily/20260731033038/linux/x86_64/openyuanrong_core-0.9.2%2B779dfe182472-py3-none-manylinux_2_31_x86_64.whl
+ARG YR_CORE_WHEEL_SHA256=4b34afa95755f44f7268d097c024c06eeddfb486cf0894b0362b0bc069794a69
 ARG GVISOR_RELEASE=release-20260706.0
 ARG GVISOR_RELEASE_BASE_URL=https://storage.googleapis.com/gvisor/releases
-ARG LIBNVIDIA_CONTAINER_VERSION=1.19.1-1
 ARG KATA_BUILD_IMAGE=ubuntu:24.04
 ARG KATA_RELEASE=4.0.0
 ARG KATA_AMD64_SHA256=2c3b9dfeba355582b40aee462b12916c9740654d0230f696adf719d67b063a8c
@@ -92,15 +87,10 @@ RUN cargo build --locked --release --bin distill_fs
 FROM ${AKERNEL_NODE_BASE_IMAGE}
 ARG AKERNEL_VERSION
 ARG AKERNEL_REVISION
-ARG OPEN_YR_VERSION
-ARG OPEN_YR_CORE_WHEEL_URL
-ARG OPEN_YR_CORE_WHEEL_SHA256
-ARG OPEN_YR_RELEASE_BASE_URL
-ARG OPEN_YR_CORE_AMD64_SHA256
-ARG OPEN_YR_CORE_ARM64_SHA256
+ARG YR_CORE_WHEEL_URL
+ARG YR_CORE_WHEEL_SHA256
 ARG GVISOR_RELEASE
 ARG GVISOR_RELEASE_BASE_URL
-ARG LIBNVIDIA_CONTAINER_VERSION
 ARG OTELCOL_CONTRIB_URL
 ARG TARGETARCH
 ARG PIP_INDEX_URL=https://pypi.org/simple
@@ -112,7 +102,6 @@ RUN apt-get update && \
         curl \
         e2fsprogs \
         fuse3 \
-        gnupg \
         iproute2 \
         iptables \
         jq \
@@ -124,25 +113,11 @@ RUN apt-get update && \
         procps \
         python3 \
         python3-pip \
+        python3-venv \
         systemd \
         systemd-sysv \
         tzdata \
         xfsprogs && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN set -eux; \
-    curl -fsSL --retry 10 --retry-delay 2 --retry-all-errors \
-      https://nvidia.github.io/libnvidia-container/gpgkey \
-      | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg; \
-    curl -fsSL --retry 10 --retry-delay 2 --retry-all-errors \
-      https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
-      | sed \
-        's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
-      > /etc/apt/sources.list.d/nvidia-container-toolkit.list; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends \
-      "libnvidia-container1=${LIBNVIDIA_CONTAINER_VERSION}" \
-      "libnvidia-container-tools=${LIBNVIDIA_CONTAINER_VERSION}"; \
     rm -rf /var/lib/apt/lists/*
 
 RUN if command -v update-alternatives >/dev/null 2>&1; then \
@@ -188,50 +163,58 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
 
 
 ENV YR_INSTALLATION_DIR=/home/yuanrong
+ENV PATH=/opt/openyuanrong/bin:${PATH}
 
-# Install the complete, language-runtime-free openYuanRong control plane from
-# its checksum-pinned core wheel. A URL and checksum pair may override the
-# release asset when validating an unreleased daily build.
+COPY ./builder/config/yr/requirements.lock /opt/openyuanrong/share/openyuanrong/requirements.lock
+COPY ./builder/config/yr/config.toml.jinja /etc/yuanrong/config.toml.jinja
+COPY ./src/yuanrong/LICENSE /usr/share/licenses/openyuanrong/LICENSE
+
+# TODO: Remove this temporary source patch when an official CLI release
+# includes environment log redaction and omits environment values from sessions.
 RUN set -eux; \
-    case "${TARGETARCH:-}" in \
-      amd64) wheel_arch=x86_64; release_sha="${OPEN_YR_CORE_AMD64_SHA256}" ;; \
-      arm64) wheel_arch=aarch64; release_sha="${OPEN_YR_CORE_ARM64_SHA256}" ;; \
-      "") \
-        case "$(uname -m)" in \
-          x86_64) wheel_arch=x86_64; release_sha="${OPEN_YR_CORE_AMD64_SHA256}" ;; \
-          aarch64) wheel_arch=aarch64; release_sha="${OPEN_YR_CORE_ARM64_SHA256}" ;; \
-          *) echo "unsupported openYuanRong target architecture: $(uname -m)" >&2; exit 1 ;; \
-        esac ;; \
-      *) echo "unsupported openYuanRong target architecture: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    wheel_name="openyuanrong_core-${OPEN_YR_VERSION}-py3-none-manylinux_2_31_${wheel_arch}.whl"; \
-    wheel_url="${OPEN_YR_RELEASE_BASE_URL}/${OPEN_YR_VERSION}/${wheel_name}"; \
-    wheel_sha="${release_sha}"; \
-    if [ -n "${OPEN_YR_CORE_WHEEL_URL}" ]; then \
-      test -n "${OPEN_YR_CORE_WHEEL_SHA256}"; \
-      wheel_name="$(python3 -c 'import os, sys, urllib.parse; print(os.path.basename(urllib.parse.unquote(urllib.parse.urlparse(sys.argv[1]).path)))' "${OPEN_YR_CORE_WHEEL_URL}")"; \
-      case "${wheel_name}" in *.whl) ;; *) echo "OPEN_YR_CORE_WHEEL_URL must reference a .whl file" >&2; exit 1 ;; esac; \
-      wheel_url="${OPEN_YR_CORE_WHEEL_URL}"; \
-      wheel_sha="${OPEN_YR_CORE_WHEEL_SHA256}"; \
-    else \
-      test -z "${OPEN_YR_CORE_WHEEL_SHA256}"; \
-    fi; \
-    wheel="/tmp/${wheel_name}"; \
-    target=/tmp/openyuanrong-core; \
     curl -fSL --retry 10 --retry-delay 2 --retry-all-errors \
-      "${wheel_url}" -o "${wheel}"; \
-    echo "${wheel_sha}  ${wheel}" | sha256sum -c -; \
-    python3 -m pip install \
-      --break-system-packages \
-      --no-cache-dir \
+      "${YR_CORE_WHEEL_URL}" \
+      -o /tmp/openyuanrong_core-0.9.2+779dfe182472-py3-none-manylinux_2_31_x86_64.whl; \
+    echo "${YR_CORE_WHEEL_SHA256}  /tmp/openyuanrong_core-0.9.2+779dfe182472-py3-none-manylinux_2_31_x86_64.whl" \
+      | sha256sum -c -; \
+    python3 -m venv /opt/openyuanrong; \
+    /opt/openyuanrong/bin/python -m pip install \
+      --require-hashes \
+      -r /opt/openyuanrong/share/openyuanrong/requirements.lock; \
+    /opt/openyuanrong/bin/python -m pip install \
       --no-deps \
-      --target "${target}" \
-      "${wheel}"; \
-    test -x "${target}/yr/functionsystem/bin/yr"; \
-    mkdir -p "${YR_INSTALLATION_DIR}"; \
-    cp -a "${target}/yr/." "${YR_INSTALLATION_DIR}/"; \
-    rm -rf "${target}" "${wheel}"; \
-    ln -sfn "${YR_INSTALLATION_DIR}/functionsystem/bin/yr" /usr/bin/yr
+      /tmp/openyuanrong_core-0.9.2+779dfe182472-py3-none-manylinux_2_31_x86_64.whl; \
+    base_py=/opt/openyuanrong/lib/python3.12/site-packages/yr/cli/component/base.py; \
+    launcher_py=/opt/openyuanrong/lib/python3.12/site-packages/yr/cli/system_launcher.py; \
+    test "$(grep -Fxc '        logger.info(f"Environment: {full_env}")' "${base_py}")" -eq 1; \
+    test "$(grep -Fxc '                    "env_vars": comp.env_vars,' "${launcher_py}")" -eq 1; \
+    sed -i \
+      's/logger.info(f"Environment: {full_env}")/logger.info(f"Environment keys: {sorted(full_env)}")/' \
+      "${base_py}"; \
+    sed -i 's/"env_vars": comp.env_vars,/"env_vars": {},/' "${launcher_py}"; \
+    ! grep -Fq '        logger.info(f"Environment: {full_env}")' "${base_py}"; \
+    test "$(grep -Fxc '        logger.info(f"Environment keys: {sorted(full_env)}")' "${base_py}")" -eq 1; \
+    ! grep -Fq '                    "env_vars": comp.env_vars,' "${launcher_py}"; \
+    test "$(grep -Fxc '                    "env_vars": {},' "${launcher_py}")" -eq 1; \
+    /opt/openyuanrong/bin/python -c "import yr"; \
+    yr --help; \
+    yr config render --help; \
+    AKERNEL_ROLE=node-agent \
+      HOSTNAME=build-smoke \
+      ETCD_ADDRESS=127.0.0.1 \
+      ETCD_PORT=2379 \
+      YR_LOG_PATH=/home/yuanrong/logs \
+      ENABLE_METRICS=false \
+      ENABLE_TRACE=false \
+      TRAEFIK_MODE=http \
+      TRAEFIK_ENABLE_TLS=false \
+      TRAEFIK_HTTP_ENTRYPOINT=websecure \
+      yr config render \
+        -t /etc/yuanrong/config.toml.jinja \
+        -o /tmp/openyuanrong-config.toml; \
+    rm -f \
+      /tmp/openyuanrong_core-0.9.2+779dfe182472-py3-none-manylinux_2_31_x86_64.whl \
+      /tmp/openyuanrong-config.toml
 
 COPY --from=runtime-image /yr-runtime-rootfs.img ${YR_INSTALLATION_DIR}/yr-runtime-rootfs.img
 
