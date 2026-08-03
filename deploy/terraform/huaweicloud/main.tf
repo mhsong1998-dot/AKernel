@@ -39,8 +39,10 @@ locals {
   } : {}
   oss_auths = merge(local.generated_oss_auths, var.oss_auths)
   registry_auths = {
-    auths = { for host, cred in var.registry_auths : host => { username = cred.username, password = cred.password } }
+    auths = { for host, cred in var.registry_auths : host => { auth = base64encode("${cred.username}:${cred.password}") } }
   }
+  registry_auths_enabled = length(var.registry_auths) > 0
+  dockerconfigjson       = base64encode(jsonencode(local.registry_auths))
 
   # When auto-creating ELB on Huawei Cloud CCE, inject required annotations
   # so the cloud-controller-manager provisions the ELB automatically.
@@ -106,7 +108,6 @@ locals {
     node_image_tag                 = var.node_image_tag
     traefik_image_repository       = var.traefik_image_repository
     traefik_image_tag              = var.traefik_image_tag
-    iam_litebus_data_key           = var.iam_litebus_data_key
     enable_kruise                  = var.install_prereqs
     master_service_type            = var.master_public_access_8888 ? var.master_service_type : "ClusterIP"
     master_service_annotations     = merge(local.huaweicloud_master_elb_annotations, var.master_service_annotations)
@@ -118,6 +119,8 @@ locals {
     node_home_csi_size             = var.node_home_csi_size
     oss_auths                      = local.oss_auths
     registry_auths                 = local.registry_auths
+    registry_auths_enabled         = local.registry_auths_enabled
+    dockerconfigjson               = local.dockerconfigjson
 
     etcd_cpu         = var.etcd_resources.cpu
     etcd_memory      = var.etcd_resources.memory
