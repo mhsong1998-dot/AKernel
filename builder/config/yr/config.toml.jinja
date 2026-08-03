@@ -76,6 +76,7 @@ iam_server_address = {{ toml_string(env["IAM_SERVER_ADDRESS"]) }}
 iam_server_address = "127.0.0.1:31113"
 {% endif %}
 [values.meta_service]
+ip = "{{ ip }}"
 port = 31111
 
 {% if has_master_mode %}

@@ -6,8 +6,8 @@ ARG AKERNEL_NODE_BASE_IMAGE=ubuntu:24.04
 ARG AKERNEL_RUNTIME_IMAGE=akernel-runtime:local
 ARG SANDBOXD_BUILD_IMAGE=golang:1.25.5-bookworm
 ARG DISTILL_FS_BUILD_IMAGE=rust:1.85.0-bookworm
-ARG YR_CORE_WHEEL_URL=https://openyuanrong.obs.cn-southwest-2.myhuaweicloud.com/daily/20260731033038/linux/x86_64/openyuanrong_core-0.9.2%2B779dfe182472-py3-none-manylinux_2_31_x86_64.whl
-ARG YR_CORE_WHEEL_SHA256=4b34afa95755f44f7268d097c024c06eeddfb486cf0894b0362b0bc069794a69
+ARG YR_CORE_WHEEL_URL=https://openyuanrong.obs.cn-southwest-2.myhuaweicloud.com/daily/20260802172935/linux/amd64/openyuanrong_core-0.7.0%2B12194b7d189e-py3-none-manylinux_2_31_x86_64.whl
+ARG YR_CORE_WHEEL_SHA256=65f1968b2dc04a200d93d6cfa2bca5601723d1197ac204edc540cafcbb784a30
 ARG GVISOR_RELEASE=release-20260706.0
 ARG GVISOR_RELEASE_BASE_URL=https://storage.googleapis.com/gvisor/releases
 ARG KATA_BUILD_IMAGE=ubuntu:24.04
@@ -174,8 +174,8 @@ COPY ./src/yuanrong/LICENSE /usr/share/licenses/openyuanrong/LICENSE
 RUN set -eux; \
     curl -fSL --retry 10 --retry-delay 2 --retry-all-errors \
       "${YR_CORE_WHEEL_URL}" \
-      -o /tmp/openyuanrong_core-0.9.2+779dfe182472-py3-none-manylinux_2_31_x86_64.whl; \
-    echo "${YR_CORE_WHEEL_SHA256}  /tmp/openyuanrong_core-0.9.2+779dfe182472-py3-none-manylinux_2_31_x86_64.whl" \
+      -o /tmp/openyuanrong_core-0.7.0+12194b7d189e-py3-none-manylinux_2_31_x86_64.whl; \
+    echo "${YR_CORE_WHEEL_SHA256}  /tmp/openyuanrong_core-0.7.0+12194b7d189e-py3-none-manylinux_2_31_x86_64.whl" \
       | sha256sum -c -; \
     python3 -m venv /opt/openyuanrong; \
     /opt/openyuanrong/bin/python -m pip install \
@@ -183,7 +183,7 @@ RUN set -eux; \
       -r /opt/openyuanrong/share/openyuanrong/requirements.lock; \
     /opt/openyuanrong/bin/python -m pip install \
       --no-deps \
-      /tmp/openyuanrong_core-0.9.2+779dfe182472-py3-none-manylinux_2_31_x86_64.whl; \
+      /tmp/openyuanrong_core-0.7.0+12194b7d189e-py3-none-manylinux_2_31_x86_64.whl; \
     base_py=/opt/openyuanrong/lib/python3.12/site-packages/yr/cli/component/base.py; \
     launcher_py=/opt/openyuanrong/lib/python3.12/site-packages/yr/cli/system_launcher.py; \
     test "$(grep -Fxc '        logger.info(f"Environment: {full_env}")' "${base_py}")" -eq 1; \
@@ -213,7 +213,7 @@ RUN set -eux; \
         -t /etc/yuanrong/config.toml.jinja \
         -o /tmp/openyuanrong-config.toml; \
     rm -f \
-      /tmp/openyuanrong_core-0.9.2+779dfe182472-py3-none-manylinux_2_31_x86_64.whl \
+      /tmp/openyuanrong_core-0.7.0+12194b7d189e-py3-none-manylinux_2_31_x86_64.whl \
       /tmp/openyuanrong-config.toml
 
 COPY --from=runtime-image /yr-runtime-rootfs.img ${YR_INSTALLATION_DIR}/yr-runtime-rootfs.img
