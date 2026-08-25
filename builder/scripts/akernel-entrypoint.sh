@@ -41,10 +41,22 @@ case "${role}" in
         exec /bin/bash /home/yuanrong/entrypoint.sh "$@"
         ;;
     node)
+        log_dir_prefix="${YR_LOG_DIR_PREFIX:-/home/yuanrong/sessions/${role}}"
+        deploy_path="${YR_DEPLOY_PATH:-${log_dir_prefix}/$(date '+%Y%m%d_%H%M%S')}"
+        export DEPLOY_PATH="${deploy_path}"
+        export YR_DEPLOY_PATH="${deploy_path}"
+        export YR_LOG_DIR_PREFIX="${log_dir_prefix}"
+        export YR_LOG_PATH="${deploy_path}/logs"
         /bin/bash /root/prepare_node.sh
         exec /usr/sbin/init "$@"
         ;;
     standalone)
+        log_dir_prefix="${YR_LOG_DIR_PREFIX:-/home/yuanrong/sessions/${role}}"
+        deploy_path="${YR_DEPLOY_PATH:-${log_dir_prefix}/$(date '+%Y%m%d_%H%M%S')}"
+        export DEPLOY_PATH="${deploy_path}"
+        export YR_DEPLOY_PATH="${deploy_path}"
+        export YR_LOG_DIR_PREFIX="${log_dir_prefix}"
+        export YR_LOG_PATH="${deploy_path}/logs"
         /usr/local/bin/ensure-component-cert
         exec /usr/sbin/init "$@"
         ;;

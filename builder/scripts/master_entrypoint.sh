@@ -10,8 +10,12 @@ ulimit -n 32768
 YR_CLI=/opt/openyuanrong/bin/yr
 YR_CONFIG_TEMPLATE=/etc/yuanrong/config.toml.jinja
 YR_CONFIG_PATH="${YR_RENDERED_CONFIG_PATH:-/run/yuanrong/config.toml}"
-DEPLOY_PATH=/home/yuanrong/master
+role="${AKERNEL_ROLE:-master}"
+log_dir_prefix="${YR_LOG_DIR_PREFIX:-/home/yuanrong/sessions/${role}}"
+DEPLOY_PATH="${YR_DEPLOY_PATH:-${log_dir_prefix}/$(date '+%Y%m%d_%H%M%S')}"
 export DEPLOY_PATH
+export YR_DEPLOY_PATH="${DEPLOY_PATH}"
+export YR_LOG_DIR_PREFIX="${log_dir_prefix}"
 export YR_LOG_PATH="${DEPLOY_PATH}/log"
 
 if [ -z "${LITEBUS_DATA_KEY:-}" ]; then
@@ -47,6 +51,7 @@ YR_CLI_ARGS=(
     start --master --block true
     --port-policy FIX
     --function-proxy-merge-process-enable
+    --log-dir-prefix "${log_dir_prefix}"
 )
 
 if [ "${YR_CLI_DRY_RUN:-false}" = "true" ]; then

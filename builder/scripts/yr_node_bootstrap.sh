@@ -101,6 +101,13 @@ case "${role}" in
         ;;
 esac
 
+log_dir_prefix="${YR_LOG_DIR_PREFIX:-/home/yuanrong/sessions/${role}}"
+deploy_path="${YR_DEPLOY_PATH:-${log_dir_prefix}/$(date '+%Y%m%d_%H%M%S')}"
+export DEPLOY_PATH="${deploy_path}"
+export YR_DEPLOY_PATH="${deploy_path}"
+export YR_LOG_DIR_PREFIX="${log_dir_prefix}"
+export YR_LOG_PATH="${deploy_path}/logs"
+
 if [ ! -f "${YR_CONFIG_TEMPLATE}" ]; then
     echo "YuanRong CLI config template not found: ${YR_CONFIG_TEMPLATE}" >&2
     exit 1
@@ -131,6 +138,7 @@ YR_CLI_ARGS=(
     "${YR_CLI}"
     --config "${YR_CONFIG_PATH}"
     start
+    --log-dir-prefix "${log_dir_prefix}"
 )
 if [ "${role}" = "standalone" ]; then
     YR_CLI_ARGS+=(--master)

@@ -30,11 +30,17 @@
 {% set enable_faas_frontend = env.get("ENABLE_FAAS_FRONTEND", "true") | lower %}
 {% set enable_iam_server = env.get("ENABLE_IAM_SERVER", "true") | lower %}
 {% set runtime_hostname = "{{ hostname }}" %}
+{% set default_log_dir_prefix = "/home/yuanrong/sessions/" ~ role %}
+{% set configured_log_dir_prefix = (env.get("YR_LOG_DIR_PREFIX", default_log_dir_prefix) | trim) %}
+{% set configured_deploy_path = (env.get("YR_DEPLOY_PATH", "") | trim) %}
+{% set deploy_path_value = configured_deploy_path if configured_deploy_path else configured_log_dir_prefix ~ "/" ~ time %}
+{% set component_log_path = deploy_path_value ~ ("/log" if is_cluster else "/logs") %}
 
 # Generated at startup from builder/config/yr/config.toml.jinja.
 
 [values]
 node_id = "{{ runtime_hostname }}"
+deploy_path = {{ toml_string(deploy_path_value) }}
 {% if configured_host_ip %}
 host_ip = {{ toml_string(configured_host_ip) }}
 {% endif %}
@@ -45,11 +51,10 @@ local_ip = {{ toml_string(configured_local_ip) }}
 cpu_num = 1
 memory_num = 3904
 shared_memory_num = 4096
-deploy_path = "/home/yuanrong/master"
 {% endif %}
 
 [values.fs.log]
-path = "{{ '/home/yuanrong/master/log' if is_cluster else '/home/yuanrong/logs' }}"
+path = {{ toml_string(component_log_path) }}
 
 [values.fs.tls]
 base_path = "/home/yuanrong/.cert"
@@ -100,7 +105,7 @@ node_timeout_s = 30
 client_dead_timeout_s = 60
 heartbeat_interval_ms = 1000
 node_dead_timeout_s = 120
-log_dir = "/home/yuanrong/logs"
+log_dir = {{ toml_string(deploy_path_value ~ "/logs/data_system/worker") }}
 {% endif %}
 
 [function_master.args]
@@ -156,7 +161,7 @@ pseudo_data_plane = true
 system_timeout = 60000
 fc_agent_mgr_retry_times = 30
 fc_agent_mgr_retry_cycle = 60000
-runtime_logs_dir = "/home/yuanrong/logs"
+runtime_logs_dir = {{ toml_string(deploy_path_value ~ "/logs") }}
 {% endif %}
 {% if is_node %}
 metrics_collector_type = "external"
