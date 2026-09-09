@@ -31,6 +31,9 @@ open_yr_core_wheel_url="${OPEN_YR_CORE_WHEEL_URL:-}"
 open_yr_core_wheel_sha256="${OPEN_YR_CORE_WHEEL_SHA256:-}"
 rrt_runtime_url="${RRT_RUNTIME_URL:-}"
 rrt_runtime_sha256="${RRT_RUNTIME_SHA256:-}"
+ascend_adapter_version="${ASCEND_ADAPTER_VERSION:-}"
+ascend_adapter_amd64_url="${ASCEND_ADAPTER_AMD64_URL:-}"
+ascend_adapter_amd64_sha256="${ASCEND_ADAPTER_AMD64_SHA256:-}"
 print_component_versions=0
 
 component_revision() {
@@ -149,6 +152,21 @@ case "${AKERNEL_ENABLE_RUNC:-false}" in
   *) die "AKERNEL_ENABLE_RUNC must be true or false" ;;
 esac
 
+case "${AKERNEL_ENABLE_ASCEND:-false}" in
+  true|false) ;;
+  *) die "AKERNEL_ENABLE_ASCEND must be true or false" ;;
+esac
+if [[ "${AKERNEL_ENABLE_ASCEND:-false}" == "true" &&
+      "${AKERNEL_ENABLE_RUNC:-false}" != "true" ]]; then
+  die "AKERNEL_ENABLE_ASCEND=true requires AKERNEL_ENABLE_RUNC=true"
+fi
+if [[ "${AKERNEL_ENABLE_ASCEND:-false}" == "true" &&
+      ( -z "${ascend_adapter_version}" ||
+        -z "${ascend_adapter_amd64_url}" ||
+        -z "${ascend_adapter_amd64_sha256}" ) ]]; then
+  die "AKERNEL_ENABLE_ASCEND=true requires ASCEND_ADAPTER_VERSION, ASCEND_ADAPTER_AMD64_URL, and ASCEND_ADAPTER_AMD64_SHA256"
+fi
+
 repository="${repository:-akernel-all-in-one}"
 tag="${tag:-$(git -C "${AKERNEL_REPO_ROOT}" rev-parse --short HEAD)-$(date +%Y%m%d%H%M%S)}"
 
@@ -208,6 +226,10 @@ node_build_args=(
   --build-arg "AKERNEL_RUNTIME_PROFILE=${runtime_profile}"
   --build-arg "AKERNEL_ENABLE_KATA=${AKERNEL_ENABLE_KATA:-true}"
   --build-arg "AKERNEL_ENABLE_RUNC=${AKERNEL_ENABLE_RUNC:-false}"
+  --build-arg "AKERNEL_ENABLE_ASCEND=${AKERNEL_ENABLE_ASCEND:-false}"
+  --build-arg "ASCEND_ADAPTER_VERSION=${ascend_adapter_version}"
+  --build-arg "ASCEND_ADAPTER_AMD64_URL=${ascend_adapter_amd64_url}"
+  --build-arg "ASCEND_ADAPTER_AMD64_SHA256=${ascend_adapter_amd64_sha256}"
   --build-arg "AKERNEL_ENABLE_FIRECRACKER=${AKERNEL_ENABLE_FIRECRACKER:-true}"
   --build-arg "AKERNEL_VERSION=${akernel_version}"
   --build-arg "AKERNEL_REVISION=${akernel_revision}"

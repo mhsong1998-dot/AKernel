@@ -44,6 +44,23 @@ Terraform registers the runtime with sandboxd. Direct Helm users must likewise
 build with `AKERNEL_ENABLE_RUNC=true` and set
 `node.config.sandboxd.enableRunc=true`.
 
+NVIDIA GPU sandboxes can use runsc or runc. The node container must include
+the NVIDIA Container Toolkit hook and must be launched with access to the host
+GPU devices and userspace driver libraries. Runc GPU requests additionally
+require the optional runc payload and runtime registration described above.
+
+Ascend 310P3 and 910 A2/A3 support additionally requires an image built with
+`AKERNEL_ENABLE_ASCEND=true` and `node.config.sandboxd.enableAscend=true`.
+The build also requires `ASCEND_ADAPTER_VERSION`, `ASCEND_ADAPTER_AMD64_URL`,
+and `ASCEND_ADAPTER_AMD64_SHA256` for a fixed
+[ascend-oci-adapter](https://github.com/openYuanrong-mirror/ascend-oci-adapter)
+release bundle. The Ascend option requires runc. The Helm profile mounts the
+standard host
+driver paths into the privileged node pod; schedule that profile only on NPU
+nodes where those paths exist. FlowGW's `/var/queue_schedule` path is optional:
+set `node.config.sandboxd.mountAscendQueueSchedule=true` only when that
+directory exists on every selected Ascend node. The mount is read-only.
+
 The iptables sandbox NAT backend remains the default. Terraform deployments
 can set `sandboxd_nat_backend = "bpfnat"` to use sandboxd's experimental
 embedded TC eBPF backend on nodes without iptables NAT or conntrack modules.
