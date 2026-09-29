@@ -17,6 +17,16 @@ monitoring:
   prometheusEndpoint: ""
   lokiEndpoint: ""
   tempoEndpoint: ""
+  # ADX exports OTLP/HTTP; if empty, derive Tempo HTTP port 4318 from 4317.
+  adxTraceHttpEndpoint: ""
+  adxTraceSampleRatio: 1
+  adxCollectorResources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
 
 image:
   repository: registry.example.com/akernel/all-in-one

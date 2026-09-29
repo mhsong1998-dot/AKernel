@@ -1,0 +1,125 @@
+{{- if .Values.monitoring.prometheusEndpoint }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: akernel-adx-native-metrics
+  namespace: {{ .Release.Namespace }}
+data:
+  config.yaml: |
+    receivers:
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: adx-coordinator
+              scrape_interval: 15s
+              kubernetes_sd_configs:
+                - role: endpoints
+                  namespaces:
+                    names: [{{ .Release.Namespace | quote }}]
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_service_name]
+                  regex: akernel-adx-coordinator-metrics
+                  action: keep
+                - source_labels: [__meta_kubernetes_endpoint_port_name]
+                  regex: metrics
+                  action: keep
+                - source_labels: [__meta_kubernetes_namespace]
+                  target_label: k8s_namespace_name
+                - source_labels: [__meta_kubernetes_pod_name]
+                  target_label: k8s_pod_name
+                - source_labels: [__meta_kubernetes_pod_node_name]
+                  target_label: k8s_node_name
+                - target_label: akernel_env
+                  replacement: {{ .Values.monitoring.akernelEnv | default "default" | quote }}
+                - target_label: component
+                  replacement: adx-coordinator
+                - target_label: component_name
+                  replacement: adx-coordinator
+            - job_name: adxlet
+              scrape_interval: 15s
+              kubernetes_sd_configs:
+                - role: endpoints
+                  namespaces:
+                    names: [{{ .Release.Namespace | quote }}]
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_service_name]
+                  regex: akernel-adx-node-metrics
+                  action: keep
+                - source_labels: [__meta_kubernetes_endpoint_port_name]
+                  regex: metrics
+                  action: keep
+                - source_labels: [__meta_kubernetes_namespace]
+                  target_label: k8s_namespace_name
+                - source_labels: [__meta_kubernetes_pod_name]
+                  target_label: k8s_pod_name
+                - source_labels: [__meta_kubernetes_pod_node_name]
+                  target_label: k8s_node_name
+                - target_label: akernel_env
+                  replacement: {{ .Values.monitoring.akernelEnv | default "default" | quote }}
+                - target_label: component
+                  replacement: adxlet
+                - target_label: component_name
+                  replacement: adxlet
+            - job_name: adx-ingress
+              scrape_interval: 15s
+              kubernetes_sd_configs:
+                - role: endpoints
+                  namespaces:
+                    names: [{{ .Release.Namespace | quote }}]
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_service_name]
+                  regex: akernel-adx-ingress-metrics
+                  action: keep
+                - source_labels: [__meta_kubernetes_endpoint_port_name]
+                  regex: metrics
+                  action: keep
+                - source_labels: [__meta_kubernetes_namespace]
+                  target_label: k8s_namespace_name
+                - source_labels: [__meta_kubernetes_pod_name]
+                  target_label: k8s_pod_name
+                - source_labels: [__meta_kubernetes_pod_node_name]
+                  target_label: k8s_node_name
+                - target_label: akernel_env
+                  replacement: {{ .Values.monitoring.akernelEnv | default "default" | quote }}
+                - target_label: component
+                  replacement: adx-ingress
+                - target_label: component_name
+                  replacement: adx-ingress
+            - job_name: adx-relay
+              scrape_interval: 15s
+              kubernetes_sd_configs:
+                - role: endpoints
+                  namespaces:
+                    names: [{{ .Release.Namespace | quote }}]
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_service_name]
+                  regex: akernel-adx-relay-metrics
+                  action: keep
+                - source_labels: [__meta_kubernetes_endpoint_port_name]
+                  regex: metrics
+                  action: keep
+                - source_labels: [__meta_kubernetes_namespace]
+                  target_label: k8s_namespace_name
+                - source_labels: [__meta_kubernetes_pod_name]
+                  target_label: k8s_pod_name
+                - source_labels: [__meta_kubernetes_pod_node_name]
+                  target_label: k8s_node_name
+                - target_label: akernel_env
+                  replacement: {{ .Values.monitoring.akernelEnv | default "default" | quote }}
+                - target_label: component
+                  replacement: adx-relay
+                - target_label: component_name
+                  replacement: adx-relay
+    processors:
+      batch:
+        timeout: 5s
+    exporters:
+      prometheusremotewrite:
+        endpoint: http://{{ .Values.monitoring.prometheusEndpoint }}/api/v1/write
+    service:
+      pipelines:
+        metrics:
+          receivers: [prometheus]
+          processors: [batch]
+          exporters: [prometheusremotewrite]
+{{- end }}

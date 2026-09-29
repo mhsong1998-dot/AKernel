@@ -239,6 +239,16 @@ and Tempo. Kubernetes nodes must support privileged Pods and the runtime
 requirements described earlier in this guide. Managed Redis requires a default
 StorageClass or an explicit `core.adx.redis.persistence.storageClassName`.
 
+When `core.monitoring.prometheusEndpoint` is set, the core chart scrapes ADX
+Coordinator, Adxlet, Ingress, and Relay metrics through cluster-internal
+Services and writes them to Prometheus with `akernel_env` labels. The Relay
+health/metrics listener uses port 18443 on the Pod network in this mode; it is
+not exposed through Traefik. The monitor chart provides `AKernel ADX Data
+Plane` for Ingress request classes, response-header latency, backend pool, and
+Relay stream/error metrics. Ingress HTTP counters include control-plane routes,
+and the latency histogram stops when the response is returned rather than when
+a streaming body finishes.
+
 ### Create the HTTPS and API key Secret
 
 Create the public HTTPS certificate and API key before installing the chart. The helper is
