@@ -60,6 +60,14 @@ spec:
                   name: {{ .Values.adx.redis.external.existingSecret | quote }}
                   key: {{ .Values.adx.redis.external.urlKey | quote }}
               {{- end }}
+            {{- if .Values.monitoring.tempoEndpoint }}
+            - name: ADX_TRACE_ENABLED
+              value: "true"
+            - name: ADX_TRACE_SAMPLE_RATIO
+              value: {{ ternary .Values.monitoring.adxTraceSampleRatio 1 (hasKey .Values.monitoring "adxTraceSampleRatio") | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://{{ .Values.monitoring.adxTraceHttpEndpoint | default (replace ":4317" ":4318" .Values.monitoring.tempoEndpoint) }}"
+            {{- end }}
           ports:
             - name: coordinator
               containerPort: 19000
@@ -80,6 +88,10 @@ spec:
           resources:
             {{- toYaml .Values.adx.coordinator.resources | nindent 12 }}
           volumeMounts:
+            {{- if .Values.monitoring.lokiEndpoint }}
+            - name: adx-logs
+              mountPath: /home/akernel/adx/run/coordinator/logs
+            {{- end }}
             - name: config
               mountPath: /etc/akernel/adx-coordinator.yaml
               subPath: coordinator.yaml
@@ -87,7 +99,34 @@ spec:
             - name: credentials
               mountPath: /etc/adx
               readOnly: true
+        {{- if .Values.monitoring.lokiEndpoint }}
+        - name: otelcol-logs
+          image: "{{ include "core.image" (dict "root" . "image" .Values.image) }}"
+          imagePullPolicy: IfNotPresent
+          command: [/usr/local/bin/otelcol-contrib]
+          args: [--config=/etc/otel/config.yaml]
+          env:
+            - name: ADX_LOG_SERVICE_NAME
+              value: akernel-adx-coordinator
+          resources:
+            {{- toYaml .Values.monitoring.adxCollectorResources | nindent 12 }}
+          volumeMounts:
+            - name: adx-logs
+              mountPath: /logs
+              readOnly: true
+            - name: otel-config
+              mountPath: /etc/otel/config.yaml
+              subPath: config.yaml
+              readOnly: true
+        {{- end }}
       volumes:
+        {{- if .Values.monitoring.lokiEndpoint }}
+        - name: adx-logs
+          emptyDir: {}
+        - name: otel-config
+          configMap:
+            name: akernel-adx-control-logs
+        {{- end }}
         - name: config
           configMap:
             name: akernel-adx-config

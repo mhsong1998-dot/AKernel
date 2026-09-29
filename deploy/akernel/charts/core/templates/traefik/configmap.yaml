@@ -62,7 +62,10 @@ data:
         adx-control:
           entryPoints:
             - websecure
-          rule: "Path(`/`) || Path(`/healthz`) || PathPrefix(`/api/instances`) || PathPrefix(`/api/sandbox`) || PathPrefix(`/api/admin/v1/keys`)"
+          # The SDK sends process/file operations to /direct on this TLS entry.
+          # Without it Traefik returns 404 and the SDK falls back to the
+          # control-plane /api/sandbox/.../invoke route, which returns 501.
+          rule: "Path(`/`) || Path(`/healthz`) || PathPrefix(`/api/instances`) || PathPrefix(`/api/sandbox`) || PathPrefix(`/api/admin/v1/keys`) || PathPrefix(`/direct`)"
           service: akernel-adx-ingress-api
           tls: {}
         adx-data:

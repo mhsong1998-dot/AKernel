@@ -14,7 +14,7 @@
       }
     ]
   },
-  "description": "AKernel scheduling dashboard with cluster instance and resource allocation metrics",
+  "description": "Agent DX scheduling dashboard using native ADX metrics; excludes unreachable nodes from capacity views.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -128,7 +128,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "yr_cluster_cpu_capacity_vmillicore{akernel_env=~\"$akernel_env\"} / 1000",
+          "expr": "sum((adx_coordinator_node_capacity_cpu_millis{akernel_env=~\"$akernel_env\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1))) / 1000",
           "legendFormat": "cluster capacity",
           "range": true,
           "refId": "A"
@@ -139,7 +139,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "(yr_cluster_cpu_capacity_vmillicore{akernel_env=~\"$akernel_env\"} - yr_cluster_cpu_allocatable_vmillicore{akernel_env=~\"$akernel_env\"}) / 1000",
+          "expr": "(sum((adx_coordinator_node_capacity_cpu_millis{akernel_env=~\"$akernel_env\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1))) - sum((adx_coordinator_node_available_cpu_millis{akernel_env=~\"$akernel_env\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1)))) / 1000",
           "legendFormat": "cluster allocated",
           "range": true,
           "refId": "B"
@@ -204,7 +204,7 @@
               }
             ]
           },
-          "unit": "decmbytes"
+          "unit": "bytes"
         },
         "overrides": [
           {
@@ -255,7 +255,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "yr_cluster_memory_capacity_mb{akernel_env=~\"$akernel_env\"}",
+          "expr": "sum((adx_coordinator_node_capacity_memory_bytes{akernel_env=~\"$akernel_env\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1)))",
           "legendFormat": "cluster capacity",
           "range": true,
           "refId": "A"
@@ -266,7 +266,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "yr_cluster_memory_capacity_mb{akernel_env=~\"$akernel_env\"} - yr_cluster_memory_allocatable_mb{akernel_env=~\"$akernel_env\"}",
+          "expr": "sum((adx_coordinator_node_capacity_memory_bytes{akernel_env=~\"$akernel_env\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1))) - sum((adx_coordinator_node_available_memory_bytes{akernel_env=~\"$akernel_env\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1)))",
           "legendFormat": "cluster allocated",
           "range": true,
           "refId": "B"
@@ -337,7 +337,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "yr_cluster_instance_total_count{akernel_env=~\"$akernel_env\"}",
+          "expr": "sum(adx_coordinator_environments{akernel_env=~\"$akernel_env\",state=\"Running\"})",
           "legendFormat": "Total Running Instances",
           "refId": "A"
         }
@@ -407,7 +407,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(yr_cluster_cpu_capacity_vmillicore{akernel_env=~\"$akernel_env\"} - yr_cluster_cpu_allocatable_vmillicore{akernel_env=~\"$akernel_env\"}) / yr_cluster_cpu_capacity_vmillicore{akernel_env=~\"$akernel_env\"}",
+          "expr": "(sum((adx_coordinator_node_capacity_cpu_millis{akernel_env=~\"$akernel_env\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1))) - sum((adx_coordinator_node_available_cpu_millis{akernel_env=~\"$akernel_env\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1)))) / clamp_min(sum((adx_coordinator_node_capacity_cpu_millis{akernel_env=~\"$akernel_env\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1))), 1)",
           "refId": "A"
         }
       ],
@@ -476,7 +476,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(yr_cluster_memory_capacity_mb{akernel_env=~\"$akernel_env\"} - yr_cluster_memory_allocatable_mb{akernel_env=~\"$akernel_env\"}) / yr_cluster_memory_capacity_mb{akernel_env=~\"$akernel_env\"}",
+          "expr": "(sum((adx_coordinator_node_capacity_memory_bytes{akernel_env=~\"$akernel_env\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1))) - sum((adx_coordinator_node_available_memory_bytes{akernel_env=~\"$akernel_env\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1)))) / clamp_min(sum((adx_coordinator_node_capacity_memory_bytes{akernel_env=~\"$akernel_env\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1))), 1)",
           "refId": "A"
         }
       ],
@@ -572,7 +572,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "yr_cluster_instance_total_count{akernel_env=~\"$akernel_env\"}",
+          "expr": "sum(adx_coordinator_environments{akernel_env=~\"$akernel_env\",state=\"Running\"})",
           "legendFormat": "Cluster total",
           "refId": "A"
         }
@@ -669,7 +669,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "yr_instance_count{akernel_env=~\"$akernel_env\"}",
+          "expr": "sum by (node_id) (adx_coordinator_environments{akernel_env=~\"$akernel_env\",state=\"Running\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1))",
           "legendFormat": "{{node_id}}",
           "refId": "A"
         }
@@ -733,7 +733,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(yr_nodes_cpu_capacity_vmillicore{akernel_env=~\"$akernel_env\"} > 0)",
+          "expr": "count((adx_coordinator_node_capacity_cpu_millis{akernel_env=~\"$akernel_env\"} > 0) and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1))",
           "refId": "A"
         }
       ],
@@ -804,7 +804,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(yr_instance_count{akernel_env=~\"$akernel_env\"}) / clamp_min(count(yr_nodes_cpu_capacity_vmillicore{akernel_env=~\"$akernel_env\"} > 0), 1)",
+          "expr": "sum(adx_coordinator_environments{akernel_env=~\"$akernel_env\",state=\"Running\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1)) / clamp_min(count((adx_coordinator_node_capacity_cpu_millis{akernel_env=~\"$akernel_env\"} > 0) and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1)), 1)",
           "refId": "A"
         }
       ],
@@ -875,7 +875,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max(yr_instance_count{akernel_env=~\"$akernel_env\"})",
+          "expr": "max(sum by (node_id) (adx_coordinator_environments{akernel_env=~\"$akernel_env\",state=\"Running\"} and on (akernel_env, node_id) (adx_coordinator_node_reachable{akernel_env=~\"$akernel_env\"} == 1)))",
           "refId": "A"
         }
       ],
@@ -888,6 +888,7 @@
   "schemaVersion": 42,
   "tags": [
     "akernel",
+    "adx",
     "schedule",
     "instances",
     "metrics",
@@ -898,17 +899,17 @@
       {
         "allValue": ".*",
         "current": {
-          "text": "test",
-          "value": "test"
+          "text": "All",
+          "value": "$__all"
         },
         "datasource": "Prometheus",
-        "definition": "label_values(akernel_env)",
+        "definition": "label_values(adx_coordinator_node_capacity_cpu_millis, akernel_env)",
         "includeAll": true,
         "label": "akernel_env",
         "name": "akernel_env",
         "options": [],
         "query": {
-          "query": "label_values(akernel_env)",
+          "query": "label_values(adx_coordinator_node_capacity_cpu_millis, akernel_env)",
           "refId": "Prometheus-akernel-env-Variable"
         },
         "refresh": 2,
@@ -924,8 +925,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "AKernel Schedule",
-  "uid": "yuanrong-complete-monitoring",
-  "version": 29,
+  "title": "AKernel ADX Schedule",
+  "uid": "akernel-adx-schedule",
+  "version": 1,
   "weekStart": ""
 }
