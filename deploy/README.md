@@ -35,7 +35,12 @@ the separately published `adx-execd` component archive and verifies its SHA-256.
 AKernel then builds its own runtime rootfs with that binary; the prebuilt ADX
 runtime image is not copied into the all-in-one image. When advancing ADX,
 update `ADX_RELEASE_URL` and `ADX_RELEASE_SHA256` in `builder/node.Dockerfile`,
-and `ADX_EXECD_URL` and `ADX_EXECD_SHA256` in `builder/runtime.Dockerfile`.
+`ADX_EXECD_URL` and `ADX_EXECD_SHA256` in `builder/runtime.Dockerfile`, and
+the source commit, wheel URL, and checksum in `sdk/python/adx-sdk.lock.json`.
+Keep all three artifacts on the same published source revision.
+The bundled defaults use source `56b3b4891944c9efd557b737c80fa62c80d84231`,
+built in CCE; the [OBS manifest](https://openyuanrong.obs.cn-southwest-2.myhuaweicloud.com/adx/daily/20261008021804-56b3b4891944/linux/amd64/manifest.json)
+records the source revision and artifact checksums.
 The published release is linux/amd64, so `make build` explicitly targets
 `linux/amd64`; Mac ARM builds require Docker's amd64 emulation.
 
@@ -238,6 +243,29 @@ The `monitor` subchart remains optional and contains Prometheus, Grafana, Loki,
 and Tempo. Kubernetes nodes must support privileged Pods and the runtime
 requirements described earlier in this guide. Managed Redis requires a default
 StorageClass or an explicit `core.adx.redis.persistence.storageClassName`.
+
+When `core.monitoring.prometheusEndpoint` is set, the core chart scrapes ADX
+Coordinator, Adxlet, Ingress, and Relay metrics through cluster-internal
+Services and writes them to Prometheus with `adx_env` and `akernel_env` labels.
+Both use the deployment identity in `core.monitoring.akernelEnv`; the existing
+label keeps the other resource dashboards usable. Node/sandbox OTLP metrics
+and node/control-plane logs also receive `adx_env`. Loki indexes this resource
+attribute so the ADX overview can filter logs by environment. Previously stored
+samples and logs are not relabeled; the ADX views show newly collected data.
+
+The monitor chart provisions four ADX dashboards: `ADX Observability`,
+`ADX Schedule`, `ADX Data Plane`, and `ADX Process Resources`. Their JSON is
+maintained in agent-dx and bundled here from merged source commit
+`56b3b4891944c9efd557b737c80fa62c80d84231`; see the
+[dashboard deployment notes](akernel/charts/monitor/dashboards/README.md).
+The chart adapts navigation to Grafana's `/grafana` subpath when enabled.
+The dashboard UIDs now use `adx-*`, so update bookmarks after upgrading.
+
+The Relay health/metrics listener uses port 18443 on the Pod network in this
+mode; it is not exposed through Traefik. Ingress HTTP counters include
+control-plane routes, and the latency histogram measures response-header
+latency rather than streaming body completion. Process panels cover only
+services that expose and are scraped for process metrics.
 
 ### Create the HTTPS and API key Secret
 

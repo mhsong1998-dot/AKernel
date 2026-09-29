@@ -161,6 +161,9 @@ processors:
 
   resource:
     attributes:
+      - key: adx_env
+        value: ${env:AKERNEL_ENV:-default}
+        action: upsert
       - key: akernel_env
         value: ${env:AKERNEL_ENV:-default}
         action: upsert

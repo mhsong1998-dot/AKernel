@@ -65,6 +65,18 @@ Address behavior is deterministic:
   without a scheme uses HTTP/WS. Exec and file transfer continue to use
   `AKERNEL_SERVER_ADDRESS`.
 
+For the Helm deployment with Traefik serving the control API on HTTPS 443 and
+the data gateway on HTTP 80, set both addresses explicitly when the server
+address includes a port:
+
+```bash
+export AKERNEL_SERVER_ADDRESS="traefik.<namespace>.svc.cluster.local:443"
+export AKERNEL_GATEWAY_ADDRESS="http://traefik.<namespace>.svc.cluster.local:80"
+```
+
+This sends reverse-tunnel WebSockets to the data gateway. Without the gateway
+override, an explicit `:443` server address makes the SDK try plain WS on 443.
+
 ## Create a sandbox
 
 ```python

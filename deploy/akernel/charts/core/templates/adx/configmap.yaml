@@ -139,6 +139,11 @@ data:
           execd_port: 50090
           execd_env:
             ADX_EXECD_CONTROL_SOCKET_PATH: /run/akernel
+            {{- if .Values.monitoring.tempoEndpoint }}
+            ADX_TRACE_ENABLED: "true"
+            ADX_TRACE_SAMPLE_RATIO: {{ ternary .Values.monitoring.adxTraceSampleRatio 1 (hasKey .Values.monitoring "adxTraceSampleRatio") | quote }}
+            OTEL_EXPORTER_OTLP_ENDPOINT: "http://{{ .Values.monitoring.adxTraceHttpEndpoint | default (replace ":4317" ":4318" .Values.monitoring.tempoEndpoint) }}"
+            {{- end }}
           checkpoint_dir: /home/akernel/adx/checkpoints
           degradation_journal: /home/akernel/adx/degraded/results.sqlite
           metrics_listen: 0.0.0.0:19091
@@ -149,9 +154,17 @@ data:
           tls:
             mode: network
         env:
+          {{- if .Values.monitoring.tempoEndpoint }}
+          ADX_TRACE_ENABLED: "true"
+          ADX_TRACE_SAMPLE_RATIO: {{ ternary .Values.monitoring.adxTraceSampleRatio 1 (hasKey .Values.monitoring "adxTraceSampleRatio") | quote }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: "http://{{ .Values.monitoring.adxTraceHttpEndpoint | default (replace ":4317" ":4318" .Values.monitoring.tempoEndpoint) }}"
+          {{- end }}
           ADX_DATA_PLANE_RELAY_ACTIVITY_UDS_DIR: /home/akernel/adx/run/node
           ADX_DATA_PLANE_RELAY_BIND: 0.0.0.0:19002
           ADX_DATA_PLANE_RELAY_ADVERTISE_ADDRESS: ${INSTANCE_IP}:19002
+          {{- if .Values.monitoring.prometheusEndpoint }}
+          ADX_DATA_PLANE_RELAY_HEALTH_BIND: 0.0.0.0:18443
+          {{- end }}
           ADX_DATA_PLANE_ALLOWED_TARGET_CIDRS: {{ .Values.adx.node.allowedTargetCidrs | quote }}
           ADX_DATA_PLANE_ALLOWED_INGRESS_CIDRS: {{ .Values.adx.node.allowedIngressCidrs | quote }}
           ADX_DATA_PLANE_INGRESS_NODE_SECURITY_MODE: network

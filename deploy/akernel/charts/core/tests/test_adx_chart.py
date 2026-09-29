@@ -271,6 +271,7 @@ class AdxChartTest(unittest.TestCase):
         self.assertIn('url: "http://akernel-adx-ingress-api:8080"', dynamic)
         self.assertIn("- websecure", dynamic)
         self.assertIn("- web", dynamic)
+        self.assertIn("PathPrefix(`/direct`)", dynamic)
         self.assertNotIn("akernel-frontend:8888", dynamic)
 
         service = self.resource("Service", "akernel-adx-ingress-api")
@@ -326,6 +327,144 @@ class AdxChartTest(unittest.TestCase):
         self.assertEqual(ports["control"]["targetPort"], "control")
         self.assertEqual(ports["data"]["port"], 80)
         self.assertEqual(ports["data"]["targetPort"], "data")
+
+    def test_adx_observability_is_rendered_when_endpoints_are_set(self) -> None:
+        result = subprocess.run(
+            [
+                "helm", "template", "akernel", str(CHART),
+                "--namespace", "akernel-adx-test",
+                "--set", "monitoring.akernelEnv=cn-north-4-adx-test",
+                "--set", "monitoring.prometheusEndpoint=prometheus.monitor:9090",
+                "--set", "monitoring.lokiEndpoint=loki.monitor:3100",
+                "--set", "monitoring.tempoEndpoint=tempo.monitor:4317",
+            ],
+            check=True, capture_output=True, text=True,
+        )
+        resources = [item for item in yaml.safe_load_all(result.stdout) if item]
+        by_key = {(item["kind"], item["metadata"]["name"]): item
+                  for item in resources}
+        metrics = by_key[("ConfigMap", "akernel-adx-native-metrics")]["data"]["config.yaml"]
+        self.assertIn("adx-coordinator", metrics)
+        self.assertIn("adxlet", metrics)
+        self.assertIn("job_name: adx-ingress", metrics)
+        self.assertIn("job_name: adx-relay", metrics)
+        self.assertIn("regex: akernel-adx-ingress-metrics", metrics)
+        self.assertIn("regex: akernel-adx-relay-metrics", metrics)
+        self.assertIn("cn-north-4-adx-test", metrics)
+        self.assertIn("role: endpoints", metrics)
+        self.assertIn("component_name", metrics)
+        scrape_jobs = yaml.safe_load(metrics)["receivers"]["prometheus"]["config"]["scrape_configs"]
+        for job in scrape_jobs:
+            environment = {
+                rule["target_label"]: rule["replacement"]
+                for rule in job["relabel_configs"]
+                if rule.get("target_label") in {"adx_env", "akernel_env"}
+            }
+            self.assertEqual(environment, {
+                "adx_env": "cn-north-4-adx-test",
+                "akernel_env": "cn-north-4-adx-test",
+            })
+        self.assertIn("http://prometheus.monitor:9090/api/v1/write", metrics)
+        self.assertEqual(
+            by_key[("Deployment", "akernel-adx-native-metrics")]["spec"]
+            ["template"]["spec"]["serviceAccountName"],
+            "akernel-adx-native-metrics",
+        )
+        self.assertIn(("Role", "akernel-adx-native-metrics"), by_key)
+        self.assertIn(("RoleBinding", "akernel-adx-native-metrics"), by_key)
+        logs = by_key[("ConfigMap", "akernel-adx-control-logs")]["data"]["config.yaml"]
+        self.assertIn("http://loki.monitor:3100/otlp", logs)
+        attributes = yaml.safe_load(logs)["processors"]["resource"]["attributes"]
+        self.assertEqual(
+            next(item["value"] for item in attributes if item["key"] == "adx_env"),
+            "cn-north-4-adx-test",
+        )
+        node_collector = by_key[("ConfigMap", "akernel-otel-collector-config")]["data"]["otel_config.yaml"]
+        node_attributes = yaml.safe_load(node_collector)["processors"]["resource"]["attributes"]
+        self.assertEqual(
+            next(item["value"] for item in node_attributes if item["key"] == "adx_env"),
+            "${env:AKERNEL_ENV:-default}",
+        )
+        for name in ("akernel-adx-coordinator", "akernel-adx-ingress-api"):
+            containers = by_key[("Deployment", name)]["spec"]["template"]["spec"]["containers"]
+            self.assertEqual([item["name"] for item in containers], [
+                "coordinator" if name.endswith("coordinator") else "ingress-api",
+                "otelcol-logs",
+            ])
+            env = {item["name"]: item.get("value") for item in containers[0]["env"]}
+            self.assertEqual(env["ADX_TRACE_ENABLED"], "true")
+            self.assertEqual(env["OTEL_EXPORTER_OTLP_ENDPOINT"], "http://tempo.monitor:4318")
+        node_env = by_key[("DaemonSet", "akernel-node")]["spec"]["template"]["spec"]["containers"][0]["env"]
+        self.assertIn("ADX_TRACE_ENABLED", {item["name"] for item in node_env})
+        node_config = yaml.safe_load(
+            by_key[("ConfigMap", "akernel-adx-config")]["data"]["node.yaml"]
+        )
+        adxlet_env = node_config["services"][0]["env"]
+        self.assertEqual(adxlet_env["ADX_TRACE_ENABLED"], "true")
+        self.assertEqual(adxlet_env["ADX_TRACE_SAMPLE_RATIO"], "1")
+        self.assertEqual(
+            adxlet_env["OTEL_EXPORTER_OTLP_ENDPOINT"],
+            "http://tempo.monitor:4318",
+        )
+        execd_env = node_config["services"][0]["config"]["execd_env"]
+        self.assertEqual(execd_env["ADX_TRACE_ENABLED"], "true")
+        self.assertEqual(execd_env["ADX_TRACE_SAMPLE_RATIO"], "1")
+        self.assertEqual(
+            execd_env["OTEL_EXPORTER_OTLP_ENDPOINT"],
+            "http://tempo.monitor:4318",
+        )
+        self.assertIn(("Service", "akernel-adx-coordinator-metrics"), by_key)
+        self.assertIn(("Service", "akernel-adx-node-metrics"), by_key)
+        ingress_metrics = by_key[("Service", "akernel-adx-ingress-metrics")]
+        self.assertEqual(ingress_metrics["spec"]["type"], "ClusterIP")
+        self.assertEqual(ingress_metrics["spec"]["ports"][0]["targetPort"], 18080)
+        relay_metrics = by_key[("Service", "akernel-adx-relay-metrics")]
+        self.assertEqual(relay_metrics["spec"]["type"], "ClusterIP")
+        self.assertEqual(relay_metrics["spec"]["ports"][0]["targetPort"], 18443)
+        self.assertEqual(
+            adxlet_env["ADX_DATA_PLANE_RELAY_HEALTH_BIND"], "0.0.0.0:18443"
+        )
+
+    def test_adx_dashboard_navigation_respects_grafana_subpath(self) -> None:
+        import json
+
+        for subpath, prefix in ((False, ""), (True, "/grafana")):
+            with self.subTest(subpath=subpath):
+                result = subprocess.run(
+                    ["helm", "template", "monitor", str(CHART.parent / "monitor"),
+                     "--set", f"grafanaServer.env.serveFromSubPath={str(subpath).lower()}"],
+                    check=True, capture_output=True, text=True,
+                )
+                resources = [item for item in yaml.safe_load_all(result.stdout) if item]
+                dashboards = next(item["data"] for item in resources
+                                  if item["kind"] == "ConfigMap"
+                                  and item["metadata"]["name"] == "grafana-dashboards")
+                for uid in ("adx-observability", "adx-schedule", "adx-data-plane", "adx-process-resources"):
+                    dashboard = json.loads(dashboards[uid + ".json"])
+                    self.assertEqual(dashboard["uid"], uid)
+                    self.assertTrue(all(link["url"].startswith(prefix + "/d/adx-")
+                                        for link in dashboard["links"]))
+                    self.assertIn("adx_env", {item["name"] for item in dashboard["templating"]["list"]})
+                loki = next(item["data"]["local-config.yaml"] for item in resources
+                            if item["kind"] == "ConfigMap" and item["metadata"]["name"] == "loki-config")
+                indexed = yaml.safe_load(loki)["limits_config"]["otlp_config"]["resource_attributes"]["attributes_config"]
+                self.assertTrue(any("adx_env" in entry.get("attributes", [])
+                                    for entry in indexed if entry["action"] == "index_label"))
+
+    def test_adx_trace_sampling_accepts_explicit_zero(self) -> None:
+        result = subprocess.run(
+            ["helm", "template", "akernel", str(CHART),
+             "--set", "monitoring.tempoEndpoint=tempo.monitor:4317",
+             "--set", "monitoring.adxTraceSampleRatio=0"],
+            check=True, capture_output=True, text=True,
+        )
+        resources = [item for item in yaml.safe_load_all(result.stdout) if item]
+        coordinator = next(item for item in resources
+                           if item.get("kind") == "Deployment"
+                           and item["metadata"]["name"] == "akernel-adx-coordinator")
+        env = {item["name"]: item.get("value") for item in
+               coordinator["spec"]["template"]["spec"]["containers"][0]["env"]}
+        self.assertEqual(env["ADX_TRACE_SAMPLE_RATIO"], "0")
 
     def test_adx_keeps_both_ports_when_legacy_single_entry_is_disabled(self) -> None:
         result = subprocess.run(

@@ -32,8 +32,8 @@ ARG OTELCOL_CONTRIB_VERSION=0.120.0
 ARG OTELCOL_CONTRIB_URL=https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTELCOL_CONTRIB_VERSION}/otelcol-contrib_${OTELCOL_CONTRIB_VERSION}_linux_amd64.tar.gz
 ARG AKERNEL_VERSION=unknown
 ARG AKERNEL_REVISION=unknown
-ARG ADX_RELEASE_URL=https://openyuanrong.obs.cn-southwest-2.myhuaweicloud.com/adx/daily/20260929023150-5e62b9f3fd57/linux/amd64/adx-release.tar.gz
-ARG ADX_RELEASE_SHA256=0afb22ba4c970d891a7271b09fca57906ef4fe84252e4106a04b8cf972bf2a31
+ARG ADX_RELEASE_URL=https://openyuanrong.obs.cn-southwest-2.myhuaweicloud.com/adx/daily/20261008021804-56b3b4891944/linux/amd64/adx-release.tar.gz
+ARG ADX_RELEASE_SHA256=45f3ec3e3aebb7673019d453734cd39eba9df80ddb1dd8241f243214b6d1a45e
 
 FROM ${AKERNEL_NODE_BASE_IMAGE} AS adx-release
 ARG ADX_RELEASE_URL

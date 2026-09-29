@@ -10,7 +10,15 @@ data:
   {{- $files := .Files.Glob "dashboards/*.json" }}
   {{- if $files }}
   {{- range $path, $file := $files }}
+  {{- $dashboard := $.Files.Get $path | fromJson }}
+  {{- if $.Values.grafanaServer.env.serveFromSubPath }}
+  {{- range $link := $dashboard.links }}
+  {{- if hasPrefix "/d/" ($link.url | default "") }}
+  {{- $_ := set $link "url" (printf "/grafana%s" $link.url) }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
   {{ base $path }}: |-
-{{ $.Files.Get $path | indent 4 }}
+{{ $dashboard | toPrettyJson | indent 4 }}
   {{- end }}
   {{- end }}
