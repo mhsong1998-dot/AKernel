@@ -15,6 +15,9 @@ data:
         cluster: {{ .Values.prometheusServer.config.clusterName | quote }}
         environment: {{ .Values.prometheusServer.config.environment | quote }}
 
+    rule_files:
+      - /etc/prometheus/adx-alerts.rules.yml
+
     scrape_configs:
       # Prometheus self-monitoring endpoint
       - job_name: 'prometheus'
@@ -418,3 +421,17 @@ data:
 
   pushgateways.json: |
     {{ .Values.prometheusServer.config.pushgateways | toJson | indent 4 }}
+  adx-alerts.rules.yml: |
+    groups:
+      - name: akernel-adx-alerts
+        interval: 15s
+        rules:
+          # Only a node registered in this Coordinator process can time out.
+          # Persisted directory records without a current session do not alarm.
+          - alert: AdxNodeHeartbeatTimeout
+            expr: adx_coordinator_node_heartbeat_timeout == 1
+            for: 45s
+            labels:
+              severity: critical
+            annotations:
+              summary: "ADX node {{ `{{ $labels.node_id }}` }} heartbeat timed out"

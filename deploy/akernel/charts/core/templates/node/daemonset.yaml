@@ -118,6 +118,14 @@ spec:
               name: {{ .Values.adx.redis.external.existingSecret | quote }}
               key: {{ .Values.adx.redis.external.urlKey | quote }}
           {{- end }}
+        {{- if .Values.monitoring.tempoEndpoint }}
+        - name: ADX_TRACE_ENABLED
+          value: "true"
+        - name: ADX_TRACE_SAMPLE_RATIO
+          value: {{ ternary .Values.monitoring.adxTraceSampleRatio 1 (hasKey .Values.monitoring "adxTraceSampleRatio") | quote }}
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://{{ .Values.monitoring.adxTraceHttpEndpoint | default (replace ":4317" ":4318" .Values.monitoring.tempoEndpoint) }}"
+        {{- end }}
         - name: RUNSC_AKERNEL
           value: "1"
         - name: NODE_NAME

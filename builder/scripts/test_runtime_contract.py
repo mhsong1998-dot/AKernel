@@ -3,8 +3,11 @@
 
 from __future__ import annotations
 
+import json
+import re
 import unittest
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import tomllib
 
@@ -68,27 +71,38 @@ class RuntimeContractTest(unittest.TestCase):
     def test_dockerfiles_install_the_pinned_obs_release(self) -> None:
         node = (ROOT / "builder/node.Dockerfile").read_text(encoding="utf-8")
         runtime = (ROOT / "builder/runtime.Dockerfile").read_text(encoding="utf-8")
-        release_url = (
-            "https://openyuanrong.obs.cn-southwest-2.myhuaweicloud.com/adx/"
-            "daily/20260929023150-5e62b9f3fd57/linux/amd64/adx-release.tar.gz"
-        )
-        release_sha256 = (
-            "0afb22ba4c970d891a7271b09fca57906ef4fe84252e4106a04b8cf972bf2a31"
-        )
-        execd_url = (
-            "https://openyuanrong.obs.cn-southwest-2.myhuaweicloud.com/adx/"
-            "daily/20260929023150-5e62b9f3fd57/linux/amd64/adx-execd.tar.gz"
-        )
-        execd_sha256 = (
-            "98a9870af612a059e8c31469b18a8b3368b13844165f696f85cca7ef11010fcd"
-        )
-        self.assertIn(release_url, node)
-        self.assertIn(release_sha256, node)
+        sdk = json.loads((ROOT / "sdk/python/adx-sdk.lock.json").read_text())
+
+        def build_arg(dockerfile: str, name: str) -> str:
+            match = re.search(rf"^ARG {name}=(\S+)$", dockerfile, re.MULTILINE)
+            self.assertIsNotNone(match, name)
+            return match.group(1)
+
+        release_url = build_arg(node, "ADX_RELEASE_URL")
+        execd_url = build_arg(runtime, "ADX_EXECD_URL")
+        for url, filename in (
+            (release_url, "adx-release.tar.gz"),
+            (execd_url, "adx-execd.tar.gz"),
+            (sdk["url"], f"adx_sandbox-{sdk['version']}-py3-none-any.whl"),
+        ):
+            parsed = urlsplit(url)
+            self.assertEqual(parsed.scheme, "https")
+            self.assertEqual(
+                parsed.netloc, "openyuanrong.obs.cn-southwest-2.myhuaweicloud.com"
+            )
+            self.assertEqual(parsed.path.rsplit("/", 1)[1], filename)
+            self.assertEqual(url.rsplit("/", 1)[0], release_url.rsplit("/", 1)[0])
+        self.assertRegex(sdk["commit"], r"^[0-9a-f]{40}$")
+        self.assertIn(f"-{sdk['commit'][:12]}/linux/amd64/", release_url)
+        for digest in (
+            build_arg(node, "ADX_RELEASE_SHA256"),
+            build_arg(runtime, "ADX_EXECD_SHA256"),
+            sdk["sha256"],
+        ):
+            self.assertRegex(digest, r"^[0-9a-f]{64}$")
         self.assertIn("install.sh", node)
         self.assertIn("sha256sum -c", node)
 
-        self.assertIn(execd_url, runtime)
-        self.assertIn(execd_sha256, runtime)
         self.assertIn("sha256sum -c", runtime)
         self.assertNotIn("adx-release.tar.gz", runtime)
         self.assertNotIn("install.sh", runtime)
